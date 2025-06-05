@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Donor Calculator with Editor</title>
+  <style>
+    /* Responsive styling for small screens */
+    @media (max-width: 600px) {
+      .form-group {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      table, thead, tbody, th, td, tr {
+        display: block;
+        width: 100%;
+      }
+      thead {
+        display: none;
+      }
+      td {
+        position: relative;
+        padding-left: 50%;
+        border: 1px solid #ccc;
+        box-sizing: border-box;
+      }
+      td::before {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 45%;
+        padding: 0.75rem;
+        white-space: nowrap;
+        font-weight: bold;
+        content: attr(data-label);
+        background: #f0f0f0;
+        border-right: 1px solid #ccc;
+      }
+    }
+
+    body { font-family: Arial, sans-serif; margin: 2rem; background: #f4f4f4; }
+    label { font-weight: bold; }
+    .form-group { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+    .form-group > div { display: flex; flex-direction: column; }
+    button { padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
+    .results { background: #fff; padding: 1rem; border-radius: 8px; margin-top: 1rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { padding: 0.75rem; border: 1px solid #ccc; text-align: left; }
+    th { background-color: #f0f0f0; }
+    .invalid { border: 2px solid red; background-color: #ffe6e6; }
+
+    .toggle-container { margin-bottom: 1rem; }
+    .tab-container { margin-top: 2rem; }
+    .tab-buttons { display: flex; gap: 1rem; margin-bottom: 1rem; }
+    .tab-buttons button.active { font-weight: bold; text-decoration: underline; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .add-rule-btn { margin-top: 1rem; padding: 0.5rem 1rem; }
+    .input-error { border: 2px solid red; outline: none; }
+    input[readonly] { background-color: #eee; color: #555; }
+
+    body.dark-mode {
+      background-color: #121212;
+      color: #f0f0f0;
+    }
+    body.dark-mode .results {
+      background-color: #1e1e1e;
+      border-color: #444;
+    }
+    body.dark-mode table,
+    body.dark-mode th,
+    body.dark-mode td {
+      border-color: #444;
+    }
+    body.dark-mode th {
+      background-color: #333;
+      color: #fff;
+    }
+    body.dark-mode input,
+    body.dark-mode select,
+    body.dark-mode button {
+      background-color: #222;
+      color: #fff;
+      border: 1px solid #444;
+    }
+  </style>
+</head>
+<body>
+<div class="toggle-container">
+  <label class="toggle-label">
+    <input id="darkModeToggle" type="checkbox" onchange="toggleDarkMode()" /> Enable Dark Mode
+  </label>
+</div>
+<h1 id="main-heading">Donor Calculator</h1>
+<div class="tab-buttons">
+  <button onclick="switchTab('calculator', this)" class="active">Calculator</button>
+  <button onclick="switchTab('editor', this)">Rules Editor</button>
+</div>
+<div class="tab-container">
+  <!-- Calculator Tab -->
+  <div id="calculator" class="tab-content active">
+    <div class="form-group" role="form" aria-labelledby="main-heading">
+      <div>
+        <label for="location">Location:</label>
+        <select id="location" name="location" aria-required="true">
+          <option value="">Select Location</option>
+          <option value="Buffalo">Buffalo</option>
+          <option value="Syracuse">Syracuse</option>
+          <option value="Albany">Albany</option>
+        </select>
+      </div>
+      <div>
+        <label for="sex">Sex:</label>
+        <select id="sex" name="sex" aria-required="true">
+          <option value="">Select Sex</option>
+          <option value="Male">Male</option>
+          <option value="Female">Female</option>
+        </select>
+      </div>
+      <div>
+        <label for="age">Age:</label>
+        <input type="number" id="age" name="age" min="0" max="110" value="" aria-required="true" aria-label="Age in years" />
+      </div>
+      <div>
+        <label for="calculate-btn" class="visually-hidden">Calculate Results</label>
+        <button id="calculate-btn" aria-label="Calculate matching donor outcomes">Calculate</button>
+      </div>
+    </div>
+    <div class="results" id="results" aria-live="polite"></div>
+  </div>
+
+  <!-- Rules Editor Tab -->
+  <div id="editor" class="tab-content">
+    <div class="form-group">
+      <div>
+        <label for="editorProcessorFilter">Filter Processor:</label>
+        <select id="editorProcessorFilter">
+          <option value="">All Processors</option>
+        </select>
+      </div>
+      <button class="add-rule-btn" onclick="addRuleRow()">Add Rule</button>
+    </div>
+    <table id="rulesTable">
+      <thead>
+        <tr>
+          <th>Location</th>
+          <th>Sex</th>
+          <th>Min Age</th>
+          <th>Max Age</th>
+          <th>Processor</th>
+          <th>Tissue Type</th>
+          <th>Delete</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div style="margin-top: 1rem;">
+      <button onclick="saveRules()">Save Changes</button>
+      <span id="saveTimestamp" style="margin-left: 1rem;"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // SharePoint integration settings
+  const TARGET_FOLDER = "/SiteAssets";  // adjust if needed
+  const RULES_FILE_NAME = "donorRules.json";
+
+  // Full list of 46 default rules
+  const defaultRules = [
+    { location: "Buffalo", sex: "Male", min: 14, max: 999, processor: "LifeCell", tissueType: "Full Thickness Skin" },
+    { location: "Buffalo", sex: "Female", min: 14, max: 999, processor: "LifeCell", tissueType: "Full Thickness Skin" },
+    { location: "Syracuse", sex: "Male", min: 14, max: 999, processor: "LifeCell", tissueType: "Full Thickness Skin" },
+    { location: "Syracuse", sex: "Female", min: 14, max: 999, processor: "LifeCell", tissueType: "Full Thickness Skin" },
+    { location: "Albany", sex: "Male", min: 14, max: 999, processor: "LifeCell", tissueType: "Full Thickness Skin" },
+    { location: "Albany", sex: "Female", min: 14, max: 999, processor: "LifeCell", tissueType: "Full Thickness Skin" },
+    { location: "Buffalo", sex: "Male", min: 12, max: 65, processor: "Axogen", tissueType: "Nerve" },
+    { location: "Buffalo", sex: "Female", min: 12, max: 65, processor: "Axogen", tissueType: "Nerve" },
+    { location: "Syracuse", sex: "Male", min: 12, max: 65, processor: "Axogen", tissueType: "Nerve" },
+    { location: "Syracuse", sex: "Female", min: 12, max: 65, processor: "Axogen", tissueType: "Nerve" },
+    { location: "All", sex: "All", min: 12, max: 70, processor: "AlloSource", tissueType: "Full Thickness Skin" },
+    { location: "All", sex: "Male", min: 12, max: 85, processor: "AlloSource", tissueType: "Bone and Soft Connective Tissue" },
+    { location: "All", sex: "Female", min: 12, max: 80, processor: "AlloSource", tissueType: "Bone and Soft Connective Tissue" },
+    { location: "All", sex: "All", min: 0.087, max: 11, processor: "AlloSource", tissueType: "Juvenile Cartilage" },
+    { location: "All", sex: "Male", min: 15, max: 45, processor: "Artivion", tissueType: "Aortoiliac" },
+    { location: "All", sex: "Female", min: 15, max: 55, processor: "Artivion", tissueType: "Aortoiliac" },
+    { location: "All", sex: "All", min: 14, max: 40, processor: "Artivion", tissueType: "Femoral Vein" },
+    { location: "All", sex: "Male", min: 14, max: 60, processor: "Artivion", tissueType: "Saphenous Vein" },
+    { location: "All", sex: "All", min: 0, max: 60, processor: "Artivion", tissueType: "Heart for Valves" },
+    { location: "All", sex: "All", min: 15, max: 45, processor: "LeMaitre", tissueType: "Aortoiliac" },
+    { location: "All", sex: "All", min: 15, max: 45, processor: "LeMaitre", tissueType: "Femoral Vein" },
+    { location: "All", sex: "Male", min: 15, max: 70, processor: "LeMaitre", tissueType: "Saphenous Vein" },
+    { location: "All", sex: "Male", min: 0, max: 65, processor: "LeMaitre", tissueType: "Heart for Valves" },
+    { location: "All", sex: "Female", min: 0, max: 45, processor: "LeMaitre", tissueType: "Heart for Valves" },
+    { location: "All", sex: "All", min: 15, max: 75, processor: "MTF", tissueType: "Full Thickness Skin" },
+    { location: "All", sex: "All", min: 15, max: 75, processor: "MTF", tissueType: "Adipose" },
+    { location: "Albany", sex: "Male", min: 14, max: 80, processor: "Solvita", tissueType: "Full Thickness Skin" },
+    { location: "Albany", sex: "Male", min: 14, max: 80, processor: "Solvita", tissueType: "Bone and Soft Connective Tissue" },
+    { location: "Albany", sex: "Female", min: 14, max: 65, processor: "Solvita", tissueType: "Bone and Soft Connective Tissue" },
+    { location: "Buffalo", sex: "Female", min: 2, max: 74, processor: "ConnectLife", tissueType: "Eyes" },
+    { location: "Buffalo", sex: "Female", min: 2, max: 74, processor: "CorneaGen", tissueType: "Eyes" },
+    { location: "Buffalo", sex: "Male", min: 2, max: 74, processor: "ConnectLife", tissueType: "Eyes" },
+    { location: "Buffalo", sex: "Male", min: 2, max: 74, processor: "CorenaGen", tissueType: "Eyes" },
+    { location: "Syracuse", sex: "Female", min: 2, max: 74, processor: "ConnectLife", tissueType: "Eyes" },
+    { location: "Syracuse", sex: "Female", min: 2, max: 74, processor: "CorenaGen", tissueType: "Eyes" },
+    { location: "Syracuse", sex: "Male", min: 2, max: 74, processor: "ConnectLife", tissueType: "Eyes" },
+    { location: "Syracuse", sex: "Male", min: 2, max: 74, processor: "CorenaGen", tissueType: "Eyes" },
+    { location: "Buffalo", sex: "Male", min: 12, max: 90, processor: "AlloSource", tissueType: "Split Thickness Skin" },
+    { location: "Buffalo", sex: "Female", min: 12, max: 90, processor: "AlloSource", tissueType: "Split Thickness Skin" },
+    { location: "All", sex: "All", min: 0, max: 999, processor: "NDRI", tissueType: "Brain" },
+    { location: "All", sex: "All", min: 18, max: 60, processor: "SPARC", tissueType: "Brain" },
+    { location: "All", sex: "All", min: 0, max: 999, processor: "NDRI", tissueType: "Research" },
+    { location: "All", sex: "All", min: 0, max: 18, processor: "dGTEx", tissueType: "Research" },
+    { location: "Buffalo", sex: "Male", min: 13, max: 75, processor: "Evergen", tissueType: "Bone and Soft Connective Tissue" },
+    { location: "Buffalo", sex: "Male", min: 13, max: 75, processor: "Evergen", tissueType: "Pericardium" },
+    { location: "Buffalo", sex: "Male", min: 18, max: 70, processor: "Evergen", tissueType: "Costal Cartilage" },
+    { location: "Buffalo", sex: "Female", min: 13, max: 75, processor: "Evergen", tissueType: "Bone and Soft Connective Tissue" },
+    { location: "Buffalo", sex: "Female", min: 13, max: 75, processor: "Evergen", tissueType: "Pericardium" },
+    { location: "Buffalo", sex: "Female", min: 18, max: 70, processor: "Evergen", tissueType: "Costal Cartilage" },
+    { location: "Albany", sex: "Female", min: 14, max: 65, processor: "Solvita", tissueType: "Full Thickness Skin" }  
+  ];
+
+  // In-memory rules array
+  let rules = [];
+
+  function switchTab(tabId, btn) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-buttons button').forEach(b => b.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+    btn.classList.add('active');
+    if (tabId === 'editor') renderEditor();
+  }
+
+  function showResults() {
+    const ageInput = document.getElementById('age');
+    ageInput.classList.remove('invalid');
+    const locationSelect = document.getElementById('location');
+    const sexSelect = document.getElementById('sex');
+    let hasError = false;
+    if (!locationSelect.value) { locationSelect.classList.add('invalid'); hasError = true; } else { locationSelect.classList.remove('invalid'); }
+    if (!sexSelect.value) { sexSelect.classList.add('invalid'); hasError = true; } else { sexSelect.classList.remove('invalid'); }
+    if (!ageInput.value || isNaN(ageInput.value)) { ageInput.classList.add('invalid'); hasError = true; } else { ageInput.classList.remove('invalid'); }
+    if (hasError) {
+      document.getElementById('results').innerHTML = '<p style="color:red;">Please fill in all fields correctly.</p>'; return;
+    }
+    const location = locationSelect.value;
+    const sex = sexSelect.value;
+    const age = parseFloat(ageInput.value);
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.innerHTML = '';
+    const matches = rules.filter(rule => {
+      const locMatch = (rule.location === location || rule.location === 'All');
+      const sexMatch = (rule.sex === sex || rule.sex === 'All');
+      const ageMatch = (age >= rule.min && age <= rule.max);
+      return locMatch && sexMatch && ageMatch;
+    });
+    if (matches.length === 0) { resultsDiv.innerHTML = '<p>No matching outcomes.</p>'; return; }
+    const grouped = {};
+    matches.forEach(({ processor, tissueType }) => {
+      if (!grouped[tissueType]) grouped[tissueType] = new Set();
+      grouped[tissueType].add(processor);
+    });
+    const customOrder = [ 'Eyes','Bone and Soft Connective Tissue','Costal Cartilage','Heart for Valves','Aortoiliac','Pericardium','Saphenous Vein','Femoral Vein','Nerve','Full Thickness Skin','Split Thickness Skin','Adipose','Research','Brain' ];
+    const sortedKeys = Object.keys(grouped).sort((a,b) => { const aIndex=customOrder.indexOf(a), bIndex=customOrder.indexOf(b); if(aIndex===-1 && bIndex===-1) return a.localeCompare(b); if(aIndex===-1) return 1; if(bIndex===-1) return -1; return aIndex-bIndex; });
+    let tableHtml = '<table><thead><tr><th>Tissue Type</th><th>Processors</th></tr></thead><tbody>';
+    sortedKeys.forEach(key => { tableHtml += `<tr><td data-label="Tissue Type">${key}</td><td data-label="Processors">${Array.from(grouped[key]).join(', ')}</td></tr>`; });
+    tableHtml += '</tbody></table>';
+    resultsDiv.innerHTML = tableHtml;
+  }
+
+  function renderEditor() {
+    const tbody = document.querySelector('#rulesTable tbody');
+    tbody.innerHTML = '';
+    const filterValue = document.getElementById('editorProcessorFilter').value;
+    rules.forEach((rule, idx) => {
+      if (filterValue && rule.processor !== filterValue) return;
+      const isNew = (rule.processor === '' && rule.tissueType === '');
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td><select class="editor-input location-select"><option value="All">All</option><option value="Buffalo">Buffalo</option><option value="Syracuse">Syracuse</option><option value="Albany">Albany</option></select></td>
+        <td><select class="editor-input sex-select"><option value="All">All</option><option value="Male">Male</option><option value="Female">Female</option></select></td>
+        <td><input type="number" value="${rule.min}" class="editor-input min-age-input" /></td>
+        <td><input type="number" value="${rule.max}" class="editor-input max-age-input" /></td>
+        <td><input value="${rule.processor}" class="editor-input processor-input" ${isNew?'':'readonly'} /></td>
+        <td><input value="${rule.tissueType}" class="editor-input tissue-input" ${isNew?'':'readonly'} /></td>
+        <td><button onclick="confirmDelete(${idx})">Delete</button></td>
+      `;
+      row.querySelector('.location-select').value = rule.location;
+      row.querySelector('.sex-select').value = rule.sex;
+      [row.querySelector('.min-age-input'), row.querySelector('.max-age-input'), row.querySelector('.processor-input'), row.querySelector('.tissue-input')].forEach(input => {
+        if (!input.value.trim()) input.classList.add('input-error');
+        input.addEventListener('input', () => input.classList.remove('input-error'));
+      });
+      tbody.appendChild(row);
+    });
+  }
+
+  function addRuleRow() {
+    rules.push({ location: 'All', sex: 'All', min: 0, max: 999, processor: '', tissueType: '' });
+    populateProcessorFilter(); renderEditor();
+  }
+
+  function confirmDelete(index) {
+    if (confirm('Are you sure you want to delete this rule?')) { deleteRule(index); }
+  }
+
+  function deleteRule(index) {
+    rules.splice(index,1); populateProcessorFilter(); renderEditor();
+  }
+
+  async function saveRules() {
+    let hasEmpty = false;
+    const rows = document.querySelectorAll('#rulesTable tbody tr');
+    const newRules = [];
+    rows.forEach(row => {
+      const locationSelect = row.querySelector('.location-select');
+      const sexSelect = row.querySelector('.sex-select');
+      const minInput = row.querySelector('.min-age-input');
+      const maxInput = row.querySelector('.max-age-input');
+      const processorInput = row.querySelector('.processor-input');
+      const tissueInput = row.querySelector('.tissue-input');
+      if (!locationSelect.value) { locationSelect.classList.add('input-error'); hasEmpty=true; } else { locationSelect.classList.remove('input-error'); }
+      if (!sexSelect.value) { sexSelect.classList.add('input-error'); hasEmpty=true; } else { sexSelect.classList.remove('input-error'); }
+      [minInput, maxInput, processorInput, tissueInput].forEach(input => {
+        if (!input.value.trim()) { input.classList.add('input-error'); hasEmpty=true; }
+      });
+      newRules.push({
+        location: locationSelect.value,
+        sex: sexSelect.value,
+        min: parseFloat(minInput.value)||0,
+        max: parseFloat(maxInput.value)||0,
+        processor: processorInput.value.trim(),
+        tissueType: tissueInput.value.trim()
+      });
+    });
+    if (hasEmpty) { alert('Please fill in all fields before saving.'); return; }
+    rules=newRules; const jsonBody=JSON.stringify(rules,null,2);
+    try {
+      await uploadJsonToSiteAssets(jsonBody);
+      const timestamp=new Date().toLocaleString();
+      document.getElementById('saveTimestamp').textContent=`Saved: ${timestamp}`;
+      alert('Rules updated successfully.');
+      populateProcessorFilter(); renderEditor();
+    } catch(e) {
+      console.error(e);
+      alert('Error saving rules: '+e.message);
+    }
+  }
+
+  async function uploadJsonToSiteAssets(jsonBody) {
+    const fileUrl=`${TARGET_FOLDER}/${RULES_FILE_NAME}`;
+    let exists=false;
+    try {
+      const res=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')?$select=Exists`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
+      if(res.ok) exists=true;
+    } catch { exists=false; }
+    if(exists) {
+      const putRes=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/$value`,{ method:'PUT', headers:{'Accept':'application/json;odata=nometadata','Content-Type':'application/json; charset=utf-8'}, body:jsonBody });
+      if(!putRes.ok){ const t=await putRes.text(); throw new Error(`Overwrite failed: ${putRes.status} ${t}`); }
+    } else {
+      const postRes=await fetch(`${window.location.origin}/_api/web/GetFolderByServerRelativeUrl('${TARGET_FOLDER}')/Files/Add(url='${RULES_FILE_NAME}',overwrite=true)`,{ method:'POST', headers:{'Accept':'application/json;odata=nometadata','Content-Type':'application/json; charset=utf-8'}, body:jsonBody });
+      if(!postRes.ok){ const t=await postRes.text(); throw new Error(`Upload failed: ${postRes.status} ${t}`); }
+    }
+  }
+
+  function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+  }
+
+  function populateProcessorFilter() {
+    const select=document.getElementById('editorProcessorFilter');
+    select.innerHTML=`<option value="">All Processors</option>`;
+    Array.from(new Set(rules.map(r=>r.processor))).sort().forEach(proc=>{
+      const opt=document.createElement('option'); opt.value=proc; opt.textContent=proc; select.appendChild(opt);
+    });
+  }
+
+  async function loadRulesFromSiteAssets() {
+    const fileUrl=`${TARGET_FOLDER}/${RULES_FILE_NAME}`;
+    try {
+      const res=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/OpenBinaryStream`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
+      if(res.ok){ const blob=await res.blob(); const text=await blob.text(); rules=JSON.parse(text); }
+      else rules=defaultRules.slice();
+    } catch { rules=defaultRules.slice(); }
+    try {
+      const metaRes=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')?$select=TimeLastModified`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
+      if(metaRes.ok){ const meta=await metaRes.json(); const m=new Date(meta.TimeLastModified).toLocaleString(); document.getElementById('saveTimestamp').textContent=`Saved: ${m}`; }
+    } catch {}
+  }
+
+  document.addEventListener('DOMContentLoaded', async ()=> {
+    populateProcessorFilter();
+    await loadRulesFromSiteAssets();
+    try {
+      const dark=localStorage.getItem('darkMode')==='true';
+      if(dark) document.body.classList.add('dark-mode');
+      document.getElementById('darkModeToggle').checked=dark;
+    } catch {}
+    document.getElementById('editorProcessorFilter').addEventListener('change', renderEditor);
+    document.getElementById('calculate-btn').addEventListener('click', showResults);
+    switchTab('calculator', document.querySelector('.tab-buttons button'));
+  });
+</script>
+</body>
+</html>
