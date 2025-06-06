@@ -381,6 +381,9 @@
     try {
       const res=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/OpenBinaryStream`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
       if(res.ok){ const blob=await res.blob(); const text=await blob.text(); rules=JSON.parse(text); }
+        //
+        console.log("Loaded donorRules.json:", rules);
+
       else rules=defaultRules.slice();
     } catch { rules=defaultRules.slice(); }
     try {
