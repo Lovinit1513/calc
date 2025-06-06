@@ -351,14 +351,14 @@
     const fileUrl=`${TARGET_FOLDER}/${RULES_FILE_NAME}`;
     let exists=false;
     try {
-      const res=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')?$select=Exists`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
+      const res=await fetch(`${_spPageContextInfo.webAbsoluteUrl}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')?$select=Exists`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
       if(res.ok) exists=true;
     } catch { exists=false; }
     if(exists) {
-      const putRes=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/$value`,{ method:'PUT', headers:{'Accept':'application/json;odata=nometadata','Content-Type':'application/json; charset=utf-8'}, body:jsonBody });
+      const putRes=await fetch(`${_spPageContextInfo.webAbsoluteUrl}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/$value`,{ method:'PUT', headers:{'Accept':'application/json;odata=nometadata','Content-Type':'application/json; charset=utf-8'}, body:jsonBody });
       if(!putRes.ok){ const t=await putRes.text(); throw new Error(`Overwrite failed: ${putRes.status} ${t}`); }
     } else {
-      const postRes=await fetch(`${window.location.origin}/_api/web/GetFolderByServerRelativeUrl('${TARGET_FOLDER}')/Files/Add(url='${RULES_FILE_NAME}',overwrite=true)`,{ method:'POST', headers:{'Accept':'application/json;odata=nometadata','Content-Type':'application/json; charset=utf-8'}, body:jsonBody });
+      const postRes=await fetch(`${_spPageContextInfo.webAbsoluteUrl}/_api/web/GetFolderByServerRelativeUrl('${TARGET_FOLDER}')/Files/Add(url='${RULES_FILE_NAME}',overwrite=true)`,{ method:'POST', headers:{'Accept':'application/json;odata=nometadata','Content-Type':'application/json; charset=utf-8'}, body:jsonBody });
       if(!postRes.ok){ const t=await postRes.text(); throw new Error(`Upload failed: ${postRes.status} ${t}`); }
     }
   }
