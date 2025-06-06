@@ -392,7 +392,7 @@
     } else rules=defaultRules.slice();
     } catch { rules=defaultRules.slice(); }
     try {
-      const metaRes=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')?$select=TimeLastModifie`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'}, credentials:'include' });
+      const metaRes=await fetch(`https://connectlife2.sharepoint.com/sites/DonorReferenceLibrary/_api/web/GetFileByServerRelativeUrl('${fileUrl}')?$select=TimeLastModifie`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'}, credentials:'include' });
       if(metaRes.ok){ const meta=await metaRes.json(); const m=new Date(meta.TimeLastModified).toLocaleString(); document.getElementById('saveTimestamp').textContent=`Saved: ${m}`; }
     } catch {}
   }
