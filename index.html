@@ -327,8 +327,8 @@
       newRules.push({
         location: locationSelect.value,
         sex: sexSelect.value,
-        min: parseFloat(minInput.value)||0,
-        max: parseFloat(maxInput.value)||0,
+        min: Float(minInput.value)||0,
+        max: Float(maxInput.value)||0,
         processor: processorInput.value.trim(),
         tissueType: tissueInput.value.trim()
       });
@@ -380,11 +380,11 @@
     const fileUrl=`${TARGET_FOLDER}/${RULES_FILE_NAME}`;
     try {
       const res=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/OpenBinaryStream`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
-      if(res.ok){ const blob=await res.blob(); const text=await blob.text(); rules=JSON.parse(text); }
+      if(res.ok){ const blob=await res.blob(); const text=await blob.text(); rules=JSON.parse(text);
         //
         console.log("Loaded donorRules.json:", rules);
 
-      else rules=defaultRules.slice();
+    } else rules=defaultRules.slice();
     } catch { rules=defaultRules.slice(); }
     try {
       const metaRes=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')?$select=TimeLastModified`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
