@@ -379,7 +379,12 @@
   async function loadRulesFromSiteAssets() {
     const fileUrl=`${TARGET_FOLDER}/${RULES_FILE_NAME}`;
     try {
-      const res=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/OpenBinaryStream`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
+      const res=await fetch(`https://connectlife2.sharepoint.com/sites/DonorReferenceLibrary/_api/web/GetFileByServerRelativeUrl('${fileUrl}')/OpenBinaryStream`, {
+  method: "GET",
+  headers: { "Accept": "application/json;odata=nometadata" },
+  credentials: "include"
+}
+                           );
       if(res.ok){ const blob=await res.blob(); const text=await blob.text(); rules=JSON.parse(text);
         //
         console.log("Loaded donorRules.json:", rules);
@@ -387,7 +392,7 @@
     } else rules=defaultRules.slice();
     } catch { rules=defaultRules.slice(); }
     try {
-      const metaRes=await fetch(`${window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')?$select=TimeLastModified`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
+      const metaRes=await fetch(window.location.origin}/_api/web/GetFileByServerRelativeUrl('${fileUrl}')?$select=TimeLastModified`,{ method:'GET', headers:{'Accept':'application/json;odata=nometadata'} });
       if(metaRes.ok){ const meta=await metaRes.json(); const m=new Date(meta.TimeLastModified).toLocaleString(); document.getElementById('saveTimestamp').textContent=`Saved: ${m}`; }
     } catch {}
   }
